@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Naujininkai Shop</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            background: linear-gradient(to right, #ffecd2, #fcb69f);
+            color: #333; 
+        }
+        .container { 
+            width: 90%; 
+            max-width: 500px; 
+            margin: auto; 
+            padding: 20px; 
+            background: white; 
+            border-radius: 10px; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.2); 
+        }
+        button { 
+            padding: 10px 15px; 
+            margin: 10px; 
+            font-size: 18px; 
+            cursor: pointer; 
+            border: none; 
+            border-radius: 5px; 
+            background-color: #3498db; 
+            color: white; 
+            transition: 0.3s;
+        }
+        button:hover { background-color: #2980b9; }
+        .vip { background-color: gold; color: black; font-weight: bold; }
+        .back { background-color: #e74c3c; }
+        .screen { display: none; }
+        .visible { display: block; }
+        .store-item { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 10px; 
+            background: #f8f8f8; 
+            margin: 5px 0; 
+            border-radius: 5px; 
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+        .buy-button { 
+            background-color: #e74c3c; 
+            color: white; 
+            border: none; 
+            padding: 5px 10px; 
+            cursor: pointer; 
+            border-radius: 5px;
+        }
+        /* Новые стили */
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #eee;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        .progress {
+            height: 100%;
+            width: 0%;
+            background-color: #3498db;
+            border-radius: 10px;
+            transition: width 0.1s linear;
+        }
+        #wait-message {
+            color: #e74c3c;
+            font-weight: bold;
+            margin: 10px 0;
+            display: none;
+        }
+        #collection-complete {
+            color: green;
+            font-weight: bold;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Naujininkai Shop</h1>
+        <p>Баланс: <span id="money">0.00</span> €</p>
+        <p id="vipStatus">VIP: ❌</p>
+
+        <!-- Главное меню -->
+        <div id="main-menu" class="screen visible">
+            <button onclick="showScreen('clicker')">💰 Заработать</button>
+            <button onclick="showScreen('store')">🛒 Магазины</button>
+            <button onclick="showScreen('inventory')">📦 Инвентарь</button>
+            <button class="vip" onclick="buyVIP()">🔥 Купить VIP (100€)</button>
+        </div>
+
+        <!-- Кликер с прогресс-баром -->
+        <div id="clicker" class="screen">
+            <h2>💰 Кликер</h2>
+            <button id="clicker-button" onclick="earnMoney()">Кликни, чтобы заработать 0.01€</button>
+            <div class="progress-bar">
+                <div id="progress" class="progress"></div>
+            </div>
+            <p id="wait-message">Подождите, пожалуйста...</p>
+            <button class="back" onclick="showScreen('main-menu')">⬅ Назад</button>
+        </div>
+
+        <!-- Магазины -->
+        <div id="store" class="screen">
+            <h2>🛒 Выберите магазин</h2>
+            <button onclick="showStore('iki')">IKI</button>
+            <button onclick="showStore('maxima')">Maxima</button>
+            <button onclick="showStore('lidl')">Lidl</button>
+            <button onclick="showStore('vinoteka')">Vinoteka</button>
+            <button onclick="showStore('kebab')">Kebab Shop</button>
+            <button class="back" onclick="showScreen('main-menu')">⬅ Назад</button>
+        </div>
+
+        <!-- Товары магазина -->
+        <div id="store-products" class="screen">
+            <h2 id="store-title"></h2>
+            <div id="products"></div>
+            <button class="back" onclick="showScreen('store')">⬅ Назад</button>
+        </div>
+
+        <!-- Инвентарь с сообщением о коллекции -->
+        <div id="inventory" class="screen">
+            <h2>📦 Твоя коллекция еды</h2>
+            <div id="collection-complete">🎉 Поздравляем! Вы собрали все продукты!</div>
+            <ul id="inventoryList"></ul>
+            <button class="back" onclick="showScreen('main-menu')">⬅ Назад</button>
+        </div>
+
+        <!-- Подтверждение покупки -->
+        <div id="purchase-confirmation" class="screen">
+            <h2>✅ Товар приобретен</h2>
+            <p id="purchase-details"></p>
+            <button class="back" onclick="showScreen('store-products')">OK</button>
+        </div>
+    </div>
+
+    <script>
+        let money = parseFloat(localStorage.getItem("money")) || 0;
+        let isVIP = localStorage.getItem("isVIP") === "true";
+        let inventory = JSON.parse(localStorage.getItem("inventory")) || [];
+        let isClickerCooldown = false;
+        const clickerCooldownTime = 2000;
+
+        const stores = {
+            iki: [
+                { name: "🍏 Яблоко", price: 1.39 }, { name: "🥖 Хлеб", price: 1.95 }, 
+                { name: "🧃 Сок", price: 0.39 }, { name: "🥐 Круассан", price: 0.75 },
+                { name: "🍩 Пончик", price: 0.50 }, { name: "🍞 Булочка", price: 1.8 },
+                { name: "🍯 Мёд", price: 4.0 }, { name: "🥣 Хлопья", price: 2.0 },
+                { name: "🥛 Йогурт", price: 0.99 }, { name: "🧈 Масло", price: 1.55 },
+                { name: "🥜 Орехи", price: 8.0 }, { name: "🍜 Лапша", price: 0.70 },
+                { name: "🥒 Огурцы", price: 1.49 }, { name: "🍅 Помидоры", price: 2.0 }
+            ],
+            maxima: [
+                { name: "🥛 Молоко", price: 1.59 }, { name: "🍫 Шоколад", price: 1.49 },
+                { name: "🍪 Печенье", price: 1.20 }, { name: "🥣 Каша", price: 2.69 },
+                { name: "🌭 Сосиски", price: 1.55 }, { name: "🍝 Макароны", price: 1.59 },
+                { name: "🧇 Вафли", price: 0.55 }, { name: "🍌 Бананы", price: 1.29 },
+                { name: "🍓 Клубники", price: 1.45 }, { name: "🍗 Куриное филе", price: 9.99 },
+                { name: "🥗 Салат", price: 7.99 }, { name: "🧀 Сыр", price: 2.29 },
+                { name: "🧃 Фруктовый сок", price: 0.39 }, { name: "🍰 Торт", price: 11.99 }
+            ],
+            lidl: [
+                { name: "🍕 Пицца", price: 12.50 }, { name: "🧀 Сыр", price: 2.29 },
+                { name: "🥩 Стейк", price: 15.00 }, { name: "🥪 Сэндвич", price: 5.00 },
+                { name: "🍔 Чизбургер", price: 0.99 }, { name: "🐟 Рыба", price: 12.00 },
+                { name: "🥗 Цезарь-салат", price: 6.5 }, { name: "🍜 Лапша", price: 4.5 },
+                { name: "🥞 Блины", price: 2.30 }, { name: "🍣 Суши", price: 9.00 },
+                { name: "🍪 Десерт", price: 5.5 }, { name: "🥤 Газировка", price: 1.99 },
+                { name: "🌭 Хот-дог", price: 2.50 }, { name: "🍦 Мороженое", price: 1.50 }
+            ],
+            vinoteka: [
+                { name: "🍷 Вино", price: 10.00 }, { name: "🥤 Сок", price: 1.20 },
+                { name: "🍪 Печенье", price: 0.30 }, { name: "🍺 Пиво", price: 5.00 },
+                { name: "🍫 Шоколад", price: 1.30 }, { name: "🥂 Шампанское", price: 30 },
+                { name: "🧀 Голубой сыр", price: 12 }, { name: "🍖 Сыровяленое мясо", price: 25 },
+                { name: "🫒 Оливки", price: 8.00 }, { name: "🍇 Виноградное вино", price: 15.00 },
+                { name: "🥓 Бекон", price: 10.00 }, { name: "🍞 Греческий хлеб", price: 6.00 },
+                { name: "🧄 Маринованный чеснок", price: 4.5 }, { name: "🥜 Фисташки", price: 7.00 }
+            ],
+            kebab: [
+                { name: "🌯 Кебаб", price: 7.00 }, { name: "🌮 Тако", price: 5.00 },
+                { name: "🍟 Картошка Фри", price: 4.00 }, { name: "🌮 Тако", price: 6.5 },
+                { name: "🍗 Шаурма", price: 8.00 }, { name: "🍔 Бургер", price: 3.00 },
+                { name: "🥤 Газировка", price: 2.00 }, { name: "🍖 Барбекю", price: 12.00 },
+                { name: "🍜 Рамен", price: 6.00 }
+            ]
+        };
+
+        // Основные функции
+        function saveGame() {
+            localStorage.setItem("money", money);
+            localStorage.setItem("isVIP", isVIP);
+            localStorage.setItem("inventory", JSON.stringify(inventory));
+        }
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('visible'));
+            document.getElementById(screenId).classList.add('visible');
+        }
+
+        // Обновленная функция кликера
+        function earnMoney() {
+            if (isClickerCooldown) return;
+            
+            money += 0.01;
+            updateMoneyDisplay();
+            startCooldown();
+        }
+
+        function startCooldown() {
+            isClickerCooldown = true;
+            const progress = document.getElementById('progress');
+            const clickerButton = document.getElementById('clicker-button');
+            const waitMessage = document.getElementById('wait-message');
+            
+            clickerButton.disabled = true;
+            waitMessage.style.display = 'block';
+            
+            let width = 0;
+            const interval = setInterval(() => {
+                width += (100 / (clickerCooldownTime / 100));
+                progress.style.width = width + '%';
+                
+                if (width >= 100) {
+                    clearInterval(interval);
+                    isClickerCooldown = false;
+                    clickerButton.disabled = false;
+                    waitMessage.style.display = 'none';
+                    progress.style.width = '0%';
+                }
+            }, 100);
+        }
+
+        // Функции магазина и инвентаря
+        function showStore(store) {
+            document.getElementById("store-title").innerText = store.toUpperCase();
+            const productContainer = document.getElementById("products");
+            productContainer.innerHTML = "";
+
+            stores[store].forEach(item => {
+                let price = isVIP ? item.price * 0.5 : item.price;
+                productContainer.innerHTML += `
+                    <div class="store-item">
+                        ${item.name} 
+                        <button class="buy-button" onclick="buyItem('${item.name}', ${price})">
+                            Купить за ${price.toFixed(2)}€
+                        </button>
+                    </div>`;
+            });
+
+            showScreen("store-products");
+        }
+
+        function buyItem(itemName, price) {
+            if (money >= price) {
+                money -= price;
+                inventory.push(itemName);
+                updateMoneyDisplay();
+                updateInventory();
+                showPurchaseConfirmation(itemName, price);
+            } else {
+                alert("Не хватает денег!");
+            }
+        }
+
+        function updateInventory() {
+            let invList = document.getElementById("inventoryList");
+            invList.innerHTML = "";
+            inventory.forEach(item => {
+                let li = document.createElement("li");
+                li.textContent = item;
+                invList.appendChild(li);
+            });
+            
+            // Проверка полной коллекции
+            document.getElementById('collection-complete').style.display = 
+                checkCollectionComplete() ? 'block' : 'none';
+            
+            saveGame();
+        }
+
+        function checkCollectionComplete() {
+            const allItems = new Set();
+            Object.values(stores).forEach(store => {
+                store.forEach(item => allItems.add(item.name.trim()));
+            });
+            
+            const collected = new Set(inventory.map(item => item.trim()));
+            return [...allItems].every(item => collected.has(item));
+        }
+
+        // Остальные функции
+        function buyVIP() {
+            if (money >= 100) {
+                money -= 100;
+                isVIP = true;
+                document.getElementById("vipStatus").innerText = "VIP: ✅";
+                updateMoneyDisplay();
+                saveGame();
+            } else {
+                alert("Не хватает денег!");
+            }
+        }
+
+        function showPurchaseConfirmation(itemName, price) {
+            document.getElementById("purchase-details").textContent = `${itemName} куплен за ${price.toFixed(2)}€`;
+            showScreen("purchase-confirmation");
+        }
+
+        function updateMoneyDisplay() {
+            document.getElementById("money").innerText = money.toFixed(2);
+            saveGame();
+        }
+
+        // Инициализация
+        updateMoneyDisplay();
+        updateInventory();
+        document.getElementById("vipStatus").innerText = `VIP: ${isVIP ? "✅" : "❌"}`;
+    </script>
+</body>
+</html>
